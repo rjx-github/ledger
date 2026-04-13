@@ -376,7 +376,7 @@ function renderSta(){
   const days=Object.keys(dm).sort((a,b)=>b.localeCompare(a));
   const cats=['合计','工艺品','大衣'];
   let dh='';days.forEach(d=>{
-    const cMap=dm[d];let dayTotal=0;Object.values(cMap).forEach(v=>dayTotal+=v);
+    const cMap=dm[d];let dayTotal=0;Object.entries(cMap).forEach(([c,v])=>dayTotal+=v*((catCfg[c]&&catCfg[c].rate)||1));
     dh+='<div class="day-group"><div class="day-date">'+d.slice(5)+'</div><div class="blocks">';
     dh+='<div class="block"><div class="block-label">合计</div><div class="block-value">'+dayTotal+'</div></div>';
     cats.forEach(c=>{if(c!=='合计'&&cMap[c])dh+='<div class="block"><div class="block-label">'+c+'</div><div class="block-value">'+cMap[c]+'</div></div>'});
