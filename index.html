@@ -247,7 +247,8 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
     <p id="modal-import-info"></p>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('modal-import-confirm')">取消</button>
-      <button class="btn-ok" onclick="confirmImport()">确认导入</button>
+      <button class="btn-ok" onclick="mergeImport()">合并</button>
+      <button class="btn-ok danger" onclick="replaceImport()">替换</button>
     </div>
   </div>
 </div>
@@ -421,7 +422,7 @@ function doImport(){
   };
   reader.readAsText(file);
 }
-function confirmImport(){
+function mergeImport(){
   if(!pendingImport)return;
   const existingIds=new Set(data.map(r=>r.id));
   const newItems=pendingImport.filter(r=>r.id&&!existingIds.has(r.id));
@@ -432,6 +433,16 @@ function confirmImport(){
   closeModal('modal-import-confirm');
   updSum();autoSync();
   toast('已合并 '+newItems.length+' 条新记录');
+}
+function replaceImport(){
+  if(!pendingImport)return;
+  data=[...pendingImport];
+  data.sort((a,b)=>(b.date+' '+(b.time||'')).localeCompare(a.date+' '+(a.time||'')));
+  localStorage.setItem('ledger3',JSON.stringify(data));
+  pendingImport=null;
+  closeModal('modal-import-confirm');
+  updSum();autoSync();
+  toast('已替换为 '+data.length+' 条记录');
 }
 
 // ---- Cloud: GitHub Gist Sync ----
