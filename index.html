@@ -281,8 +281,8 @@ function updateCloudBtn(){
 }
 
 // ---- Basic utils ----
-function ts(){return new Date().toISOString().slice(0,10)}
-function now(){const d=new Date();return{date:d.toISOString().slice(0,10),time:d.toTimeString().slice(0,5)}}
+function ts(){const d=new Date();d.setMinutes(d.getMinutes()+480);return d.toISOString().slice(0,10)}
+function now(){const d=new Date();d.setMinutes(d.getMinutes()+480);const iso=d.toISOString();return{date:iso.slice(0,10),time:iso.slice(11,16)}}
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
 
@@ -304,7 +304,20 @@ function save(){
 }
 
 function updSum(){
-  const t=ts(),d=data.filter(r=>r.date===t);
+  // Business day: 18:00 today ~ 18:00 tomorrow (Beijing time)
+  const now_bj=new Date();now_bj.setMinutes(now_bj.getMinutes()+480);
+  const h=now_bj.getUTCHours();
+  const bd=new Date(now_bj);
+  if(h<18)bd.setUTCDate(bd.getUTCDate()-1); // before 18:00 = previous business day
+  const bdStr=bd.toISOString().slice(0,10);
+  const tmr=new Date(bd);tmr.setUTCDate(tmr.getUTCDate()+1);
+  const tmrStr=tmr.toISOString().slice(0,10);
+  const d=data.filter(r=>{
+    if(r.date>bdStr&&r.date<tmrStr)return true;
+    if(r.date===bdStr&&(r.time||"00:00")>="18:00")return true;
+    if(r.date===tmrStr&&(r.time||"00:00")<"18:00")return true;
+    return false;
+  });
   let gypTot=0,dyQty=0;
   d.forEach(r=>{
     const rate=(catCfg[r.cat]&&catCfg[r.cat].rate)||1;
