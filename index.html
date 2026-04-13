@@ -135,9 +135,9 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
   <div class="section"><input type="text" id="d-note" placeholder="备注（可选）" maxlength="60"></div>
   <button class="btn" onclick="save()">保存</button>
   <div class="sum">
-    <div><div class="sum-n" id="sc">0</div><div class="sum-l">今日笔数</div></div>
-    <div><div class="sum-n" id="st">0</div><div class="sum-l">今日合计</div></div>
-    <div><div class="sum-n" id="sa">0</div><div class="sum-l">平均</div></div>
+    <div><div class="sum-n" id="sc">0</div><div class="sum-l">合计(¥)</div></div>
+    <div><div class="sum-n" id="sg">0</div><div class="sum-l">工艺品</div></div>
+    <div><div class="sum-n" id="sd">0</div><div class="sum-l">大衣(件)</div></div>
   </div>
 </div>
 
@@ -254,7 +254,7 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
 
 <script>
 // ---- Category config ----
-const catCfg={工艺品:{unit:'¥',label:'金额'},大衣:{unit:'件',label:'件数'}};
+const catCfg={工艺品:{unit:'¥',label:'金额',rate:1},大衣:{unit:'件',label:'件数',rate:25}};
 
 let buf='';
 let curCat='工艺品';
@@ -297,9 +297,17 @@ function save(){
 }
 
 function updSum(){
-  const t=ts(),d=data.filter(r=>r.date===t),tot=d.reduce((s,r)=>s+r.amount,0);
-  document.getElementById('sc').textContent=d.length;document.getElementById('st').textContent=tot;
-  document.getElementById('sa').textContent=d.length?(tot/d.length).toFixed(1):'0';
+  const t=ts(),d=data.filter(r=>r.date===t);
+  let gypTot=0,dyQty=0;
+  d.forEach(r=>{
+    const rate=(catCfg[r.cat]&&catCfg[r.cat].rate)||1;
+    if(r.cat==='工艺品')gypTot+=r.amount;
+    else if(r.cat==='大衣')dyQty+=r.amount;
+  });
+  const total=gypTot+dyQty*25;
+  document.getElementById('sc').textContent=total;
+  document.getElementById('sg').textContent=gypTot;
+  document.getElementById('sd').textContent=dyQty;
 }
 
 // ---- Records ----
@@ -349,7 +357,7 @@ function renderSta(){
   else if(rng>0){const s=new Date();s.setDate(s.getDate()-rng+1);from=s.toISOString().slice(0,10);fromT='00:00';to='9999-12-31';toT='23:59'}
   else{from='2000-01-01';fromT='00:00';to='9999-12-31';toT='23:59'}
   const f=data.filter(r=>{const dt=r.date+' '+(r.time||'00:00');return dt>=(from+' '+fromT)&&dt<=(to+' '+toT)});
-  const total=f.reduce((a,r)=>a+r.amount,0);
+  const total=f.reduce((a,r)=>a+r.amount*((catCfg[r.cat]&&catCfg[r.cat].rate)||1),0);
   const label=rng==='cus'?(from.slice(5)+' '+fromT+' ~ '+to.slice(5)+' '+toT):(rng?'近'+rng+'天':'全部');
   document.getElementById('sl').textContent=label;document.getElementById('sv').textContent=total;
   document.getElementById('sn').textContent=f.length+' 笔';
@@ -358,7 +366,7 @@ function renderSta(){
   const cols=['#2563eb','#d97706','#059669','#dc2626','#7c3aed','#6b7280'];
   let ch='';sorted.forEach(([c,v],i)=>{const u=(catCfg[c]&&catCfg[c].unit)||'¥';ch+='<div class="bar"><div class="bar-l">'+c+'</div><div class="bar-t"><div class="bar-f" style="width:'+(v/mx*100)+'%;background:'+cols[i%6]+'">'+u+v+'</div></div></div>'});
   document.getElementById('scat').innerHTML=ch||'<div class="empty">无数据</div>';
-  const dm={};f.forEach(r=>{dm[r.date]=(dm[r.date]||0)+r.amount});
+  const dm={};f.forEach(r=>{dm[r.date]=(dm[r.date]||0)+r.amount*((catCfg[r.cat]&&catCfg[r.cat].rate)||1)});
   const days=Object.entries(dm).sort((a,b)=>b[0].localeCompare(a[0]));const md=days.length?Math.max(...days.map(d=>d[1])):1;
   let dh='';days.forEach(([d,v])=>{dh+='<div class="bar"><div class="bar-l">'+d.slice(5)+'</div><div class="bar-t"><div class="bar-f" style="width:'+(v/md*100)+'%">'+v+'</div></div></div>'});
   document.getElementById('sday').innerHTML=dh||'<div class="empty">无数据</div>';
