@@ -9,8 +9,12 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,'PingFang SC',sans-serif;background:#f5f5f5;color:#111;min-height:100vh;padding-bottom:60px;-webkit-tap-highlight-color:transparent;font-size:15px}
-.hdr{background:#fff;padding:14px 16px;border-bottom:1px solid #e5e5e5;position:sticky;top:0;z-index:100}
+.hdr{background:#fff;padding:14px 16px;border-bottom:1px solid #e5e5e5;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between}
 .hdr h1{font-size:18px;font-weight:700}
+.hdr .hdr-actions{display:flex;gap:8px}
+.hdr .hdr-btn{background:none;border:1px solid #e5e5e5;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:#2563eb;font-weight:600}
+.hdr .hdr-btn:active{background:#e8e8e8}
+.hdr .hdr-btn.cloud-on{border-color:#059669;color:#059669}
 .tabs{display:flex;background:#fff;border-bottom:1px solid #e5e5e5;position:sticky;top:53px;z-index:99}
 .tab{flex:1;padding:12px 0;text-align:center;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent}
 .tab.active{color:#2563eb;border-bottom-color:#2563eb}
@@ -35,6 +39,8 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
 .btn{width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;background:#2563eb;color:#fff;-webkit-appearance:none;margin-top:4px}
 .btn:active{opacity:.8}
 .btn-sm{padding:10px;font-size:14px}
+.btn-danger{background:#dc2626}
+.btn-danger:active{opacity:.8}
 .sum{display:flex;background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;margin-top:16px}
 .sum>div{flex:1;text-align:center;padding:12px 0;border-right:1px solid #e5e5e5}
 .sum>div:last-child{border-right:none}
@@ -62,11 +68,31 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
 .empty{text-align:center;padding:40px 0;color:#888;font-size:14px}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:10000;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:9999;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:380px;padding:24px;animation:modalIn .15s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.modal h3{font-size:18px;font-weight:700;margin-bottom:8px}
+.modal p{font-size:14px;color:#666;margin-bottom:16px;line-height:1.5}
+.modal input{width:100%;padding:10px 12px;border:1px solid #e5e5e5;border-radius:10px;font-size:14px;outline:none;margin-bottom:12px}
+.modal input:focus{border-color:#2563eb}
+.modal-actions{display:flex;gap:8px;margin-top:8px}
+.modal-actions button{flex:1;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
+.modal-actions .btn-cancel{background:#f0f0f0;color:#666}
+.modal-actions .btn-cancel:active{background:#e0e0e0}
+.modal-actions .btn-ok{background:#2563eb;color:#fff}
+.modal-actions .btn-ok:active{opacity:.8}
+.modal-actions .btn-ok.danger{background:#dc2626}
 </style>
 </head>
 <body>
 
-<div class="hdr"><h1>记账</h1></div>
+<div class="hdr">
+  <h1>记账</h1>
+  <div class="hdr-actions">
+    <button class="hdr-btn" id="cloudBtn" onclick="showCloudModal()">☁️ 同步</button>
+  </div>
+</div>
 <div class="tabs">
   <div class="tab active" onclick="tab('add')">记账</div>
   <div class="tab" onclick="tab('rec')">记录</div>
@@ -150,7 +176,73 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
     <div class="mut" style="margin-bottom:8px">每日</div>
     <div id="sday"></div>
   </div>
-  <button class="btn" onclick="exportCsv()">导出 CSV</button>
+  <div class="card">
+    <div class="mut" style="margin-bottom:8px">数据</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" style="flex:1" onclick="exportCsv()">导出 CSV</button>
+      <button class="btn btn-sm" style="flex:1" onclick="exportJson()">导出 JSON</button>
+      <button class="btn btn-sm" style="flex:1;background:#059669" onclick="importJson()">导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="modal-del">
+  <div class="modal">
+    <h3>确认删除</h3>
+    <p id="modal-del-info"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-del')">取消</button>
+      <button class="btn-ok danger" onclick="confirmDel()">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cloud sync modal -->
+<div class="modal-overlay" id="modal-cloud">
+  <div class="modal">
+    <h3>☁️ GitHub 同步</h3>
+    <p>通过 GitHub Gist 跨设备同步数据。需要 <a href="https://github.com/settings/tokens" target="_blank" style="color:#2563eb">Personal Access Token</a>（需 <code>gist</code> 权限）。</p>
+    <input type="password" id="cloud-token" placeholder="GitHub Token (ghp_...)">
+    <input type="text" id="cloud-gist" placeholder="Gist ID（留空自动创建）">
+    <div style="font-size:12px;color:#888;margin-bottom:12px">
+      Token 仅存储在本地浏览器中，不会上传到任何服务器。
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-cloud')">取消</button>
+      <button class="btn-ok" onclick="saveCloud()">保存设置</button>
+    </div>
+    <div id="cloud-status" style="margin-top:12px;font-size:13px;color:#888"></div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn-ok" style="background:#059669" onclick="syncUp()">⬆️ 上传到 Gist</button>
+      <button class="btn-ok" style="background:#059669" onclick="syncDown()">⬇️ 从 Gist 拉取</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import modal -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal">
+    <h3>导入数据</h3>
+    <p>支持从 JSON 文件导入。可与导出的 JSON 文件搭配使用。</p>
+    <input type="file" id="import-file" accept=".json" style="font-size:14px;margin-bottom:12px">
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-import')">取消</button>
+      <button class="btn-ok" onclick="doImport()">导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overwrite confirm modal (import) -->
+<div class="modal-overlay" id="modal-import-confirm">
+  <div class="modal">
+    <h3>确认导入</h3>
+    <p id="modal-import-info"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-import-confirm')">取消</button>
+      <button class="btn-ok" onclick="confirmImport()">确认导入</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -160,16 +252,33 @@ let buf='';
 let curCat='工艺品';
 let data=JSON.parse(localStorage.getItem('ledger3')||'[]');
 let rng=7;
+let delId=null;
+let pendingImport=null;
 
+// ---- Cloud config ----
+function getCloud(){return JSON.parse(localStorage.getItem('ledger_cloud')||'{}')}
+function setCloud(c){localStorage.setItem('ledger_cloud',JSON.stringify(c))}
+function updateCloudBtn(){
+  const c=getCloud();
+  const btn=document.getElementById('cloudBtn');
+  btn.classList.toggle('cloud-on',!!(c.token&&c.gistId));
+  btn.textContent=c.gistId?'☁️ 已连接':'☁️ 同步';
+}
+
+// ---- Basic utils ----
 function ts(){return new Date().toISOString().slice(0,10)}
 function now(){const d=new Date();return{date:d.toISOString().slice(0,10),time:d.toTimeString().slice(0,5)}}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
 
-function press(n){if(buf.length>=3)return;buf+=n;document.getElementById('amt').textContent=buf}
+// ---- Number pad ----
+function press(n){if(buf.length>=10)return;buf+=n;document.getElementById('amt').textContent=buf}
 function pressDel(){buf=buf.slice(0,-1);document.getElementById('amt').textContent=buf||'0'}
 function pressClr(){buf='';document.getElementById('amt').textContent='0'}
 
 function pickCat(el,c){document.querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));el.classList.add('active');curCat=c}
 
+// ---- Save ----
 function save(){
   if(!buf){toast('请输入金额');return}
   const r={id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),amount:parseInt(buf),cat:curCat,note:document.getElementById('d-note').value.trim(),date:document.getElementById('d-date').value,time:document.getElementById('d-time').value};
@@ -185,19 +294,40 @@ function updSum(){
   document.getElementById('sa').textContent=d.length?(tot/d.length).toFixed(1):'0';
 }
 
+// ---- Records ----
 function renderRec(){
   const date=document.getElementById('q-date').value,list=document.getElementById('rlist'),f=data.filter(r=>r.date===date);
   if(!f.length){list.innerHTML='<div class="empty">无记录</div>';return}
   const wk=['日','一','二','三','四','五','六'],d=new Date(date);
   let h='<div class="date-hdr">'+(d.getMonth()+1)+'月'+d.getDate()+'日 周'+wk[d.getDay()]+'</div>';
   f.forEach(r=>{
-    h+='<div class="rec"><div class="rec-b"><div class="rec-c">'+r.cat+'</div>'+(r.note?'<div class="rec-n">'+esc(r.note)+'</div>':'')+'<div class="rec-m">'+r.time+'</div></div><div class="rec-a">'+r.amount+'</div><button class="rec-d" onclick="del(\''+r.id+'\')">✕</button></div>';
+    h+='<div class="rec"><div class="rec-b"><div class="rec-c">'+r.cat+'</div>'+(r.note?'<div class="rec-n">'+esc(r.note)+'</div>':'')+'<div class="rec-m">'+r.time+'</div></div><div class="rec-a">'+r.amount+'</div><button class="rec-d" onclick="askDel(\''+r.id+'\')">✕</button></div>';
   });
   list.innerHTML=h;
 }
 
-function del(id){data=data.filter(r=>r.id!==id);localStorage.setItem('ledger3',JSON.stringify(data));renderRec();updSum();toast('已删除')}
+// ---- Delete with confirm ----
+function askDel(id){
+  delId=id;
+  const r=data.find(x=>x.id===id);
+  if(r){
+    document.getElementById('modal-del-info').textContent='确定删除 '+r.cat+' ¥'+r.amount+' 的记录吗？';
+  }
+  document.getElementById('modal-del').classList.add('show');
+}
+function confirmDel(){
+  if(!delId)return;
+  data=data.filter(r=>r.id!==delId);
+  localStorage.setItem('ledger3',JSON.stringify(data));
+  delId=null;
+  closeModal('modal-del');
+  renderRec();updSum();toast('已删除');
+}
 
+// ---- Modal helpers ----
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+
+// ---- Stats ----
 function setRng(d){
   rng=d;document.querySelectorAll('.rng-bar .rng').forEach(b=>b.classList.toggle('active',b.dataset.r==d));
   document.getElementById('cus-row').style.display=d==='cus'?'flex':'none';
@@ -226,28 +356,152 @@ function renderSta(){
   document.getElementById('sday').innerHTML=dh||'<div class="empty">无数据</div>';
 }
 
+// ---- Export CSV ----
 function exportCsv(){
-  const list=rng==='cus'?data.filter(r=>{const from=document.getElementById('cus-from').value;if(!from)return true;const fromT=document.getElementById('cus-from-t').value||'00:00';const to=document.getElementById('cus-to').value||'9999-12-31';const toT=document.getElementById('cus-to-t').value||'23:59';const dt=r.date+' '+(r.time||'00:00');return dt>=(from+' '+fromT)&&dt<=(to+' '+toT)}):rng>0?(()=>{const s=new Date();s.setDate(s.getDate()-rng+1);return data.filter(r=>r.date>=s.toISOString().slice(0,10))})():[...data];
-  if(!list.length){toast('无数据可导出');return}
+  if(!data.length){toast('无数据可导出');return}
   let csv='\uFEFF日期,时间,分类,金额,备注\n';
-  list.forEach(r=>{csv+=r.date+','+(r.time||'')+','+r.cat+','+r.amount+','+((r.note||'').replace(/,/g,'，'))+'\n'});
+  data.forEach(r=>{csv+=r.date+','+(r.time||'')+','+r.cat+','+r.amount+','+((r.note||'').replace(/,/g,'，'))+'\n'});
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='记账_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
-  toast('已导出 '+list.length+' 条');
+  toast('已导出 '+data.length+' 条');
 }
 
+// ---- Export JSON ----
+function exportJson(){
+  if(!data.length){toast('无数据可导出');return}
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='记账_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  toast('已导出 '+data.length+' 条');
+}
+
+// ---- Import JSON ----
+function importJson(){
+  document.getElementById('import-file').value='';
+  document.getElementById('modal-import').classList.add('show');
+}
+function doImport(){
+  const file=document.getElementById('import-file').files[0];
+  if(!file){toast('请选择文件');return}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const imported=JSON.parse(e.target.result);
+      if(!Array.isArray(imported))throw new Error('格式错误');
+      pendingImport=imported;
+      document.getElementById('modal-import-info').textContent=
+        '导入 '+imported.length+' 条记录，当前本地有 '+data.length+' 条。要合并还是替换？';
+      closeModal('modal-import');
+      document.getElementById('modal-import-confirm').classList.add('show');
+    }catch(err){toast('文件格式错误: '+err.message)}
+  };
+  reader.readAsText(file);
+}
+function confirmImport(){
+  if(!pendingImport)return;
+  const existingIds=new Set(data.map(r=>r.id));
+  const newItems=pendingImport.filter(r=>r.id&&!existingIds.has(r.id));
+  data=data.concat(newItems);
+  data.sort((a,b)=>(b.date+' '+(b.time||'')).localeCompare(a.date+' '+(a.time||'')));
+  localStorage.setItem('ledger3',JSON.stringify(data));
+  pendingImport=null;
+  closeModal('modal-import-confirm');
+  updSum();
+  toast('已合并 '+newItems.length+' 条新记录');
+}
+
+// ---- Cloud: GitHub Gist Sync ----
+function showCloudModal(){
+  const c=getCloud();
+  document.getElementById('cloud-token').value=c.token||'';
+  document.getElementById('cloud-gist').value=c.gistId||'';
+  updateCloudStatus();
+  document.getElementById('modal-cloud').classList.add('show');
+}
+
+function saveCloud(){
+  const c=getCloud();
+  c.token=document.getElementById('cloud-token').value.trim();
+  c.gistId=document.getElementById('cloud-gist').value.trim();
+  setCloud(c);
+  updateCloudBtn();
+  toast('设置已保存');
+}
+
+function updateCloudStatus(){
+  const c=getCloud();
+  const el=document.getElementById('cloud-status');
+  if(c.token&&c.gistId){
+    el.innerHTML='✅ 已配置 Gist ID: <code>'+esc(c.gistId.slice(0,8))+'…</code>';
+  }else if(c.token){
+    el.innerHTML='⚠️ 已配置 Token，无 Gist ID（首次上传会自动创建）';
+  }else{
+    el.innerHTML='未配置';
+  }
+}
+
+async function gistAPI(method,gistId,body){
+  const c=getCloud();
+  if(!c.token){toast('请先配置 Token');return null}
+  const url=gistId?'https://api.github.com/gists/'+gistId:'https://api.github.com/gists';
+  const opts={method,headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'}};
+  if(body)opts.body=JSON.stringify(body);
+  const res=await fetch(url,opts);
+  if(!res.ok){throw new Error('GitHub API '+res.status+': '+(await res.text()))}
+  return await res.json();
+}
+
+async function syncUp(){
+  try{
+    const c=getCloud();
+    const body={
+      description:'记账数据同步',
+      public:false,
+      files:{'ledger.json':{content:JSON.stringify({data,syncTime:new Date().toISOString()},null,2)}}
+    };
+    const result=await gistAPI(c.gistId?'PATCH':'POST',c.gistId,body);
+    if(!result)return;
+    if(!c.gistId){
+      c.gistId=result.id;
+      setCloud(c);
+      document.getElementById('cloud-gist').value=result.id;
+      updateCloudBtn();
+    }
+    updateCloudStatus();
+    toast('已上传到 Gist ✅');
+  }catch(e){toast('上传失败: '+e.message)}
+}
+
+async function syncDown(){
+  try{
+    const c=getCloud();
+    if(!c.gistId){toast('请先上传一次以创建 Gist');return}
+    const result=await gistAPI('GET',c.gistId);
+    if(!result)return;
+    const file=result.files['ledger.json'];
+    if(!file){toast('Gist 中无数据文件');return}
+    const imported=JSON.parse(file.content);
+    if(!imported.data||!Array.isArray(imported.data)){toast('数据格式错误');return}
+    pendingImport=imported.data;
+    document.getElementById('modal-import-info').textContent=
+      '从 Gist 拉取到 '+imported.data.length+' 条记录（'+(imported.syncTime||'未知时间')+'），当前本地有 '+data.length+' 条。要合并还是替换？';
+    document.getElementById('modal-import-confirm').classList.add('show');
+    document.getElementById('modal-cloud').classList.remove('show');
+    toast('拉取成功，请确认导入');
+  }catch(e){toast('拉取失败: '+e.message)}
+}
+
+// ---- Tabs ----
 function tab(n){
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['add','rec','sta'][i]===n));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='p-'+n));
   if(n==='rec')renderRec();if(n==='sta')renderSta();
 }
 
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1500)}
-
+// ---- Init ----
 (function(){
   const n=now();document.getElementById('d-date').value=n.date;document.getElementById('d-time').value=n.time;
-  document.getElementById('q-date').value=n.date;updSum();
+  document.getElementById('q-date').value=n.date;updSum();updateCloudBtn();
 })();
 </script>
 </body>
