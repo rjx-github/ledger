@@ -414,23 +414,34 @@ function confirmImport(){
 let syncTimer=null;
 function autoSync(){
   const c=getCloud();
-  if(!c.token)return;
+  if(!c.token||!c.token.startsWith('ghp_')&&!c.token.startsWith('github_pat_'))return;
   clearTimeout(syncTimer);
   syncTimer=setTimeout(async()=>{
     try{
+      const isUpdate=!!c.gistId;
       const body={
         description:'记账数据同步',
         public:false,
         files:{'ledger.json':{content:JSON.stringify({data,syncTime:new Date().toISOString()},null,2)}}
       };
-      const result=await gistAPI(c.gistId?'PATCH':'POST',c.gistId,body);
-      if(!result)return;
-      if(!c.gistId){
+      const url=isUpdate?'https://api.github.com/gists/'+c.gistId:'https://api.github.com/gists';
+      const res=await fetch(url,{
+        method:isUpdate?'PATCH':'POST',
+        headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+      if(!res.ok){
+        const errText=await res.text();
+        throw new Error(res.status+' '+errText);
+      }
+      const result=await res.json();
+      if(!isUpdate&&result.id){
         c.gistId=result.id;
         setCloud(c);
+        document.getElementById('cloud-gist').value=result.id;
         updateCloudBtn();
       }
-      // subtle indicator, no toast to avoid noise
+      // subtle indicator
       const btn=document.getElementById('cloudBtn');
       btn.textContent='☁️ 已同步';
       setTimeout(()=>updateCloudBtn(),2000);
@@ -440,7 +451,7 @@ function autoSync(){
       btn.textContent='☁️ 同步失败';
       setTimeout(()=>updateCloudBtn(),3000);
     }
-  },1500);
+  },2000);
 }
 
 function showCloudModal(){
@@ -488,14 +499,28 @@ async function gistAPI(method,gistId,body){
 async function syncUp(){
   try{
     const c=getCloud();
+    if(!c.token){toast('请先配置 Token');return}
+    if(!c.token.startsWith('ghp_')&&!c.token.startsWith('github_pat_')){toast('Token 格式不正确，应以 ghp_ 或 github_pat_ 开头');return}
+    const isUpdate=!!c.gistId;
     const body={
       description:'记账数据同步',
       public:false,
       files:{'ledger.json':{content:JSON.stringify({data,syncTime:new Date().toISOString()},null,2)}}
     };
-    const result=await gistAPI(c.gistId?'PATCH':'POST',c.gistId,body);
-    if(!result)return;
-    if(!c.gistId){
+    const url=isUpdate?'https://api.github.com/gists/'+c.gistId:'https://api.github.com/gists';
+    const res=await fetch(url,{
+      method:isUpdate?'PATCH':'POST',
+      headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    if(!res.ok){
+      const errText=await res.text();
+      if(res.status===401)throw new Error('Token 无效或已过期，请检查');
+      if(res.status===404)throw new Error('找不到 Gist（Token 可能缺少 gist 权限）');
+      throw new Error('API 错误 '+res.status+': '+errText);
+    }
+    const result=await res.json();
+    if(!isUpdate&&result.id){
       c.gistId=result.id;
       setCloud(c);
       document.getElementById('cloud-gist').value=result.id;
