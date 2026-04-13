@@ -253,6 +253,9 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
 <div class="toast" id="toast"></div>
 
 <script>
+// ---- Category config ----
+const catCfg={工艺品:{unit:'¥',label:'金额'},大衣:{unit:'件',label:'件数'}};
+
 let buf='';
 let curCat='工艺品';
 let data=JSON.parse(localStorage.getItem('ledger3')||'[]');
@@ -281,12 +284,12 @@ function press(n){if(buf.length>=10)return;buf+=n;document.getElementById('amt')
 function pressDel(){buf=buf.slice(0,-1);document.getElementById('amt').textContent=buf||'0'}
 function pressClr(){buf='';document.getElementById('amt').textContent='0'}
 
-function pickCat(el,c){document.querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));el.classList.add('active');curCat=c}
+function pickCat(el,c){document.querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));el.classList.add('active');curCat=c;document.querySelector('.amt-label').textContent=catCfg[c].label}
 
 // ---- Save ----
 function save(){
   if(!buf){toast('请输入金额');return}
-  const r={id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),amount:parseInt(buf),cat:curCat,note:document.getElementById('d-note').value.trim(),date:document.getElementById('d-date').value,time:document.getElementById('d-time').value};
+  const r={id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),amount:parseInt(buf),cat:curCat,unit:catCfg[curCat].unit,note:document.getElementById('d-note').value.trim(),date:document.getElementById('d-date').value,time:document.getElementById('d-time').value};
   data.unshift(r);localStorage.setItem('ledger3',JSON.stringify(data));
   buf='';document.getElementById('amt').textContent='0';document.getElementById('d-note').value='';
   const n=now();document.getElementById('d-date').value=n.date;document.getElementById('d-time').value=n.time;
@@ -306,7 +309,7 @@ function renderRec(){
   const wk=['日','一','二','三','四','五','六'],d=new Date(date);
   let h='<div class="date-hdr">'+(d.getMonth()+1)+'月'+d.getDate()+'日 周'+wk[d.getDay()]+'</div>';
   f.forEach(r=>{
-    h+='<div class="rec"><div class="rec-b"><div class="rec-c">'+r.cat+'</div>'+(r.note?'<div class="rec-n">'+esc(r.note)+'</div>':'')+'<div class="rec-m">'+r.time+'</div></div><div class="rec-a">'+r.amount+'</div><button class="rec-d" onclick="askDel(\''+r.id+'\')">✕</button></div>';
+    h+='<div class="rec"><div class="rec-b"><div class="rec-c">'+r.cat+'</div>'+(r.note?'<div class="rec-n">'+esc(r.note)+'</div>':'')+'<div class="rec-m">'+r.time+'</div></div><div class="rec-a">'+(r.unit||'¥')+r.amount+'</div><button class="rec-d" onclick="askDel(\''+r.id+'\')">✕</button></div>';
   });
   list.innerHTML=h;
 }
@@ -316,7 +319,7 @@ function askDel(id){
   delId=id;
   const r=data.find(x=>x.id===id);
   if(r){
-    document.getElementById('modal-del-info').textContent='确定删除 '+r.cat+' ¥'+r.amount+' 的记录吗？';
+    document.getElementById('modal-del-info').textContent='确定删除 '+r.cat+' '+(r.unit||'¥')+r.amount+' 的记录吗？';
   }
   document.getElementById('modal-del').classList.add('show');
 }
@@ -353,7 +356,7 @@ function renderSta(){
   const cm={};f.forEach(r=>{cm[r.cat]=(cm[r.cat]||0)+r.amount});
   const sorted=Object.entries(cm).sort((a,b)=>b[1]-a[1]);const mx=sorted.length?sorted[0][1]:1;
   const cols=['#2563eb','#d97706','#059669','#dc2626','#7c3aed','#6b7280'];
-  let ch='';sorted.forEach(([c,v],i)=>{ch+='<div class="bar"><div class="bar-l">'+c+'</div><div class="bar-t"><div class="bar-f" style="width:'+(v/mx*100)+'%;background:'+cols[i%6]+'">'+v+'</div></div></div>'});
+  let ch='';sorted.forEach(([c,v],i)=>{const u=(catCfg[c]&&catCfg[c].unit)||'¥';ch+='<div class="bar"><div class="bar-l">'+c+'</div><div class="bar-t"><div class="bar-f" style="width:'+(v/mx*100)+'%;background:'+cols[i%6]+'">'+u+v+'</div></div></div>'});
   document.getElementById('scat').innerHTML=ch||'<div class="empty">无数据</div>';
   const dm={};f.forEach(r=>{dm[r.date]=(dm[r.date]||0)+r.amount});
   const days=Object.entries(dm).sort((a,b)=>b[0].localeCompare(a[0]));const md=days.length?Math.max(...days.map(d=>d[1])):1;
@@ -364,8 +367,8 @@ function renderSta(){
 // ---- Export CSV ----
 function exportCsv(){
   if(!data.length){toast('无数据可导出');return}
-  let csv='\uFEFF日期,时间,分类,金额,备注\n';
-  data.forEach(r=>{csv+=r.date+','+(r.time||'')+','+r.cat+','+r.amount+','+((r.note||'').replace(/,/g,'，'))+'\n'});
+  let csv='\uFEFF日期,时间,分类,数值,单位,备注\n';
+  data.forEach(r=>{csv+=r.date+','+(r.time||'')+','+r.cat+','+r.amount+','+(r.unit||'¥')+','+((r.note||'').replace(/,/g,'，'))+'\n'});
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='记账_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
   toast('已导出 '+data.length+' 条');
