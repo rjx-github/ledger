@@ -285,7 +285,7 @@ function save(){
   data.unshift(r);localStorage.setItem('ledger3',JSON.stringify(data));
   buf='';document.getElementById('amt').textContent='0';document.getElementById('d-note').value='';
   const n=now();document.getElementById('d-date').value=n.date;document.getElementById('d-time').value=n.time;
-  updSum();toast('已保存');
+  updSum();autoSync();toast('已保存');
 }
 
 function updSum(){
@@ -321,7 +321,7 @@ function confirmDel(){
   localStorage.setItem('ledger3',JSON.stringify(data));
   delId=null;
   closeModal('modal-del');
-  renderRec();updSum();toast('已删除');
+  renderRec();updSum();autoSync();toast('已删除');
 }
 
 // ---- Modal helpers ----
@@ -406,11 +406,43 @@ function confirmImport(){
   localStorage.setItem('ledger3',JSON.stringify(data));
   pendingImport=null;
   closeModal('modal-import-confirm');
-  updSum();
+  updSum();autoSync();
   toast('已合并 '+newItems.length+' 条新记录');
 }
 
 // ---- Cloud: GitHub Gist Sync ----
+let syncTimer=null;
+function autoSync(){
+  const c=getCloud();
+  if(!c.token)return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(async()=>{
+    try{
+      const body={
+        description:'记账数据同步',
+        public:false,
+        files:{'ledger.json':{content:JSON.stringify({data,syncTime:new Date().toISOString()},null,2)}}
+      };
+      const result=await gistAPI(c.gistId?'PATCH':'POST',c.gistId,body);
+      if(!result)return;
+      if(!c.gistId){
+        c.gistId=result.id;
+        setCloud(c);
+        updateCloudBtn();
+      }
+      // subtle indicator, no toast to avoid noise
+      const btn=document.getElementById('cloudBtn');
+      btn.textContent='☁️ 已同步';
+      setTimeout(()=>updateCloudBtn(),2000);
+    }catch(e){
+      console.error('autoSync failed:',e);
+      const btn=document.getElementById('cloudBtn');
+      btn.textContent='☁️ 同步失败';
+      setTimeout(()=>updateCloudBtn(),3000);
+    }
+  },1500);
+}
+
 function showCloudModal(){
   const c=getCloud();
   document.getElementById('cloud-token').value=c.token||'';
@@ -426,6 +458,8 @@ function saveCloud(){
   setCloud(c);
   updateCloudBtn();
   toast('设置已保存');
+  // Test sync if configured
+  if(c.token)autoSync();
 }
 
 function updateCloudStatus(){
@@ -434,7 +468,7 @@ function updateCloudStatus(){
   if(c.token&&c.gistId){
     el.innerHTML='✅ 已配置 Gist ID: <code>'+esc(c.gistId.slice(0,8))+'…</code>';
   }else if(c.token){
-    el.innerHTML='⚠️ 已配置 Token，无 Gist ID（首次上传会自动创建）';
+    el.innerHTML='⚠️ 已配置 Token，无 Gist ID（首次操作会自动创建）';
   }else{
     el.innerHTML='未配置';
   }
@@ -442,7 +476,7 @@ function updateCloudStatus(){
 
 async function gistAPI(method,gistId,body){
   const c=getCloud();
-  if(!c.token){toast('请先配置 Token');return null}
+  if(!c.token)return null;
   const url=gistId?'https://api.github.com/gists/'+gistId:'https://api.github.com/gists';
   const opts={method,headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
@@ -491,6 +525,27 @@ async function syncDown(){
   }catch(e){toast('拉取失败: '+e.message)}
 }
 
+// Auto-pull on load if cloud configured
+async function autoPull(){
+  const c=getCloud();
+  if(!c.token||!c.gistId)return;
+  try{
+    const result=await gistAPI('GET',c.gistId);
+    if(!result||!result.files['ledger.json'])return;
+    const imported=JSON.parse(result.files['ledger.json'].content);
+    if(!imported.data||!Array.isArray(imported.data))return;
+    const existingIds=new Set(data.map(r=>r.id));
+    const newItems=imported.data.filter(r=>r.id&&!existingIds.has(r.id));
+    if(newItems.length){
+      data=data.concat(newItems);
+      data.sort((a,b)=>(b.date+' '+(b.time||'')).localeCompare(a.date+' '+(a.time||'')));
+      localStorage.setItem('ledger3',JSON.stringify(data));
+      updSum();
+      toast('已同步 '+newItems.length+' 条新记录');
+    }
+  }catch(e){console.error('autoPull failed:',e)}
+}
+
 // ---- Tabs ----
 function tab(n){
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['add','rec','sta'][i]===n));
@@ -502,6 +557,7 @@ function tab(n){
 (function(){
   const n=now();document.getElementById('d-date').value=n.date;document.getElementById('d-time').value=n.time;
   document.getElementById('q-date').value=n.date;updSum();updateCloudBtn();
+  autoPull(); // sync from cloud on load
 })();
 </script>
 </body>
