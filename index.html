@@ -215,6 +215,10 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
     <div style="font-size:12px;color:#888;margin-bottom:12px">
       Token 仅存储在本地浏览器中，不会上传到任何服务器。
     </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:12px;cursor:pointer">
+      <input type="checkbox" id="cloud-auto" style="width:18px;height:18px;accent-color:#2563eb">
+      启动时自动同步
+    </label>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('modal-cloud')">取消</button>
       <button class="btn-ok" onclick="saveCloud()">保存设置</button>
@@ -450,6 +454,7 @@ let syncTimer=null;
 function autoSync(){
   const c=getCloud();
   if(!c.token||!c.token.startsWith('ghp_')&&!c.token.startsWith('github_pat_'))return;
+  if(c.autoSync===false)return; // auto-sync disabled by user
   // Safety: if local data is empty but gist exists, don't overwrite — pull instead
   if(data.length===0&&c.gistId){autoPull();return}
   clearTimeout(syncTimer);
@@ -495,6 +500,7 @@ function showCloudModal(){
   const c=getCloud();
   document.getElementById('cloud-token').value=c.token||'';
   document.getElementById('cloud-gist').value=c.gistId||'';
+  document.getElementById('cloud-auto').checked=c.autoSync!==false;
   updateCloudStatus();
   document.getElementById('modal-cloud').classList.add('show');
 }
@@ -503,6 +509,7 @@ function saveCloud(){
   const c=getCloud();
   c.token=document.getElementById('cloud-token').value.trim();
   c.gistId=document.getElementById('cloud-gist').value.trim();
+  c.autoSync=document.getElementById('cloud-auto').checked;
   setCloud(c);
   updateCloudBtn();
   if(c.token){
@@ -697,7 +704,19 @@ function tab(n){
 (function(){
   const n=now();document.getElementById('d-date').value=n.date;document.getElementById('d-time').value=n.time;
   document.getElementById('q-date').value=n.date;updSum();updateCloudBtn();
-  autoPull(); // sync from cloud on load
+  const c=getCloud();
+  if(c.token&&(c.token.startsWith('ghp_')||c.token.startsWith('github_pat_'))){
+    if(c.autoSync===undefined){
+      // First time: ask user
+      if(confirm('是否启用自动同步？\n\n启用后，每次保存/删除记录会自动同步到 Gist，启动时自动拉取云端数据。')){
+        c.autoSync=true;
+      }else{
+        c.autoSync=false;
+      }
+      setCloud(c);
+    }
+    if(c.autoSync)autoPull();
+  }
 })();
 </script>
 </body>
