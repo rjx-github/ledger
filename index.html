@@ -553,10 +553,28 @@ async function syncDown(){
 // Auto-pull on load if cloud configured
 async function autoPull(){
   const c=getCloud();
-  if(!c.token||!c.gistId)return;
+  if(!c.token||!c.token.startsWith('ghp_')&&!c.token.startsWith('github_pat_'))return;
+  // Auto-detect Gist ID if not set
+  if(!c.gistId){
+    try{
+      const res=await fetch('https://api.github.com/gists',{headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json'}});
+      if(res.ok){
+        const gists=await res.json();
+        const found=gists.find(g=>g.description==='记账数据同步'&&g.files['ledger.json']);
+        if(found){
+          c.gistId=found.id;
+          setCloud(c);
+          updateCloudBtn();
+        }
+      }
+    }catch(e){console.error('autoDetect failed:',e)}
+  }
+  if(!c.gistId)return;
   try{
-    const result=await gistAPI('GET',c.gistId);
-    if(!result||!result.files['ledger.json'])return;
+    const res=await fetch('https://api.github.com/gists/'+c.gistId,{headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json'}});
+    if(!res.ok)return;
+    const result=await res.json();
+    if(!result.files||!result.files['ledger.json'])return;
     const imported=JSON.parse(result.files['ledger.json'].content);
     if(!imported.data||!Array.isArray(imported.data))return;
     const existingIds=new Set(data.map(r=>r.id));
