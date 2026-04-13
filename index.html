@@ -135,9 +135,9 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
   <div class="section"><input type="text" id="d-note" placeholder="备注（可选）" maxlength="60"></div>
   <button class="btn" onclick="save()">保存</button>
   <div class="sum">
-    <div><div class="sum-n" id="sc">0</div><div class="sum-l">合计(¥)</div></div>
-    <div><div class="sum-n" id="sg">0</div><div class="sum-l">工艺品</div></div>
-    <div><div class="sum-n" id="sd">0</div><div class="sum-l">大衣(件)</div></div>
+    <div><div class="sum-n" id="sc">¥0</div><div class="sum-l">合计</div></div>
+    <div><div class="sum-n" id="sg">¥0</div><div class="sum-l">工艺品</div></div>
+    <div><div class="sum-n" id="sd">0件</div><div class="sum-l">大衣</div></div>
   </div>
 </div>
 
@@ -305,9 +305,9 @@ function updSum(){
     else if(r.cat==='大衣')dyQty+=r.amount;
   });
   const total=gypTot+dyQty*25;
-  document.getElementById('sc').textContent=total;
-  document.getElementById('sg').textContent=gypTot;
-  document.getElementById('sd').textContent=dyQty;
+  document.getElementById('sc').textContent='¥'+total;
+  document.getElementById('sg').textContent='¥'+gypTot;
+  document.getElementById('sd').textContent=dyQty+'件';
 }
 
 // ---- Records ----
