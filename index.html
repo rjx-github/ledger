@@ -184,6 +184,11 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
       <button class="btn btn-sm" style="flex:1;background:#059669" onclick="importJson()">导入</button>
     </div>
   </div>
+  <div class="card" id="pull-hint" style="display:none">
+    <div class="mut" style="margin-bottom:8px">☁️ 云端有数据</div>
+    <p style="font-size:13px;color:#666;margin-bottom:12px">检测到本地无数据，但云端有记录。配置同步后自动拉取。</p>
+    <button class="btn btn-sm" style="background:#059669" onclick="showCloudModal()">配置同步</button>
+  </div>
 </div>
 
 <!-- Delete confirm modal -->
@@ -415,6 +420,8 @@ let syncTimer=null;
 function autoSync(){
   const c=getCloud();
   if(!c.token||!c.token.startsWith('ghp_')&&!c.token.startsWith('github_pat_'))return;
+  // Safety: if local data is empty but gist exists, don't overwrite — pull instead
+  if(data.length===0&&c.gistId){autoPull();return}
   clearTimeout(syncTimer);
   syncTimer=setTimeout(async()=>{
     try{
@@ -468,9 +475,63 @@ function saveCloud(){
   c.gistId=document.getElementById('cloud-gist').value.trim();
   setCloud(c);
   updateCloudBtn();
-  toast('设置已保存');
-  // Test sync if configured
-  if(c.token)autoSync();
+  if(c.token){
+    // First pull from cloud, don't upload empty data
+    syncFirst();
+  }else{
+    toast('设置已保存');
+  }
+}
+
+// First-time sync: detect gist + pull before uploading
+async function syncFirst(){
+  const c=getCloud();
+  if(!c.token)return;
+  toast('正在连接云端…');
+  try{
+    // Auto-detect gist if not set
+    if(!c.gistId){
+      const res=await fetch('https://api.github.com/gists?per_page=100',{headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json'}});
+      if(res.ok){
+        const gists=await res.json();
+        const found=gists.find(g=>g.description==='记账数据同步'&&g.files['ledger.json']);
+        if(found){
+          c.gistId=found.id;
+          setCloud(c);
+          document.getElementById('cloud-gist').value=found.id;
+          updateCloudBtn();
+        }
+      }
+    }
+    // Pull existing data from gist
+    if(c.gistId){
+      const res=await fetch('https://api.github.com/gists/'+c.gistId,{headers:{'Authorization':'token '+c.token,'Accept':'application/vnd.github.v3+json'}});
+      if(res.ok){
+        const result=await res.json();
+        if(result.files&&result.files['ledger.json']){
+          const imported=JSON.parse(result.files['ledger.json'].content);
+          if(imported.data&&Array.isArray(imported.data)&&imported.data.length>0){
+            const existingIds=new Set(data.map(r=>r.id));
+            const newItems=imported.data.filter(r=>r.id&&!existingIds.has(r.id));
+            if(newItems.length){
+              data=data.concat(newItems);
+              data.sort((a,b)=>(b.date+' '+(b.time||'')).localeCompare(a.date+' '+(a.time||'')));
+              localStorage.setItem('ledger3',JSON.stringify(data));
+              updSum();
+              toast('已从云端拉取 '+newItems.length+' 条记录');
+              return;
+            }
+          }
+        }
+      }
+    }
+    // No existing gist or no data in gist — safe to create/upload
+    autoSync();
+    toast('云端已连接');
+  }catch(e){
+    toast('连接失败: '+e.message);
+    console.error('syncFirst failed:',e);
+  }
 }
 
 function updateCloudStatus(){
@@ -589,11 +650,17 @@ async function autoPull(){
   }catch(e){console.error('autoPull failed:',e)}
 }
 
+function checkEmptyHint(){
+  if(data.length>0)return;
+  const c=getCloud();
+  if(!c.token)document.getElementById('pull-hint').style.display='block';
+}
+
 // ---- Tabs ----
 function tab(n){
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['add','rec','sta'][i]===n));
   document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='p-'+n));
-  if(n==='rec')renderRec();if(n==='sta')renderSta();
+  if(n==='rec')renderRec();if(n==='sta'){renderSta();checkEmptyHint();}
 }
 
 // ---- Init ----
