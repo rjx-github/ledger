@@ -159,8 +159,8 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
     <div class="rng" data-r="cus" onclick="setRng('cus')">自定义</div>
   </div>
   <div class="rng-bar rng-bar-bd">
-    <div class="rng active" data-bd="00:00" onclick="setBdMode('00:00')">0:00-24:00</div>
-    <div class="rng" data-bd="18:00" onclick="setBdMode('18:00')">18:00-次日18:00</div>
+    <div class="rng" data-bd="00:00" onclick="setBdMode('00:00')">0:00-24:00</div>
+    <div class="rng active" data-bd="18:00" onclick="setBdMode('18:00')">18:00-次日18:00</div>
   </div>
   <div class="dt-row" id="cus-row" style="display:none;margin-bottom:12px">
     <input type="date" id="cus-from" onchange="renderSta()">
@@ -271,7 +271,7 @@ let buf='';
 let curCat='工艺品';
 let data=JSON.parse(localStorage.getItem('ledger3')||'[]');
 let rng=7;
-let bdMode='00:00'; // '00:00'=每日0点分界, '18:00'=每日18点分界
+let bdMode='18:00'; // '00:00'=每日0点分界, '18:00'=每日18点分界
 let delId=null;
 let pendingImport=null;
 
