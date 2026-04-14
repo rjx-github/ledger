@@ -158,6 +158,10 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
     <div class="rng" data-r="0" onclick="setRng(0)">全部</div>
     <div class="rng" data-r="cus" onclick="setRng('cus')">自定义</div>
   </div>
+  <div class="rng-bar">
+    <div class="rng active" data-bd="00:00" onclick="setBdMode('00:00')">0:00-24:00</div>
+    <div class="rng" data-bd="18:00" onclick="setBdMode('18:00')">18:00-次日18:00</div>
+  </div>
   <div class="dt-row" id="cus-row" style="display:none;margin-bottom:12px">
     <input type="date" id="cus-from" onchange="renderSta()">
     <input type="time" id="cus-from-t" value="00:00" onchange="renderSta()">
@@ -267,6 +271,7 @@ let buf='';
 let curCat='工艺品';
 let data=JSON.parse(localStorage.getItem('ledger3')||'[]');
 let rng=7;
+let bdMode='00:00'; // '00:00'=每日0点分界, '18:00'=每日18点分界
 let delId=null;
 let pendingImport=null;
 
@@ -304,20 +309,27 @@ function save(){
 }
 
 function updSum(){
-  // Business day: 18:00 today ~ 18:00 tomorrow (Beijing time)
   const now_bj=new Date();now_bj.setMinutes(now_bj.getMinutes()+480);
-  const h=now_bj.getUTCHours();
-  const bd=new Date(now_bj);
-  if(h<18)bd.setUTCDate(bd.getUTCDate()-1); // before 18:00 = previous business day
-  const bdStr=bd.toISOString().slice(0,10);
-  const tmr=new Date(bd);tmr.setUTCDate(tmr.getUTCDate()+1);
-  const tmrStr=tmr.toISOString().slice(0,10);
-  const d=data.filter(r=>{
-    if(r.date>bdStr&&r.date<tmrStr)return true;
-    if(r.date===bdStr&&(r.time||"00:00")>="18:00")return true;
-    if(r.date===tmrStr&&(r.time||"00:00")<"18:00")return true;
-    return false;
-  });
+  let d;
+  if(bdMode==='18:00'){
+    // Business day: 18:00 today ~ 18:00 tomorrow (Beijing time)
+    const h=now_bj.getUTCHours();
+    const bd=new Date(now_bj);
+    if(h<18)bd.setUTCDate(bd.getUTCDate()-1);
+    const bdStr=bd.toISOString().slice(0,10);
+    const tmr=new Date(bd);tmr.setUTCDate(tmr.getUTCDate()+1);
+    const tmrStr=tmr.toISOString().slice(0,10);
+    d=data.filter(r=>{
+      if(r.date>bdStr&&r.date<tmrStr)return true;
+      if(r.date===bdStr&&(r.time||"00:00")>="18:00")return true;
+      if(r.date===tmrStr&&(r.time||"00:00")<"18:00")return true;
+      return false;
+    });
+  }else{
+    // Standard day: 0:00-24:00
+    const today=now_bj.toISOString().slice(0,10);
+    d=data.filter(r=>r.date===today);
+  }
   let gypTot=0,dyQty=0;
   d.forEach(r=>{
     const rate=(catCfg[r.cat]&&catCfg[r.cat].rate)||1;
@@ -365,10 +377,17 @@ function closeModal(id){document.getElementById(id).classList.remove('show')}
 
 // ---- Stats ----
 function setRng(d){
-  rng=d;document.querySelectorAll('.rng-bar .rng').forEach(b=>b.classList.toggle('active',b.dataset.r==d));
+  rng=d;
+  document.querySelectorAll('.rng-bar:first-child .rng').forEach(b=>b.classList.toggle('active',b.dataset.r==d));
   document.getElementById('cus-row').style.display=d==='cus'?'flex':'none';
   if(d==='cus'){const n=new Date();document.getElementById('cus-to').value=n.toISOString().slice(0,10);document.getElementById('cus-to-t').value='23:59';const f=new Date(n);f.setDate(f.getDate()-6);document.getElementById('cus-from').value=f.toISOString().slice(0,10);document.getElementById('cus-from-t').value='00:00'}
   renderSta();
+}
+
+function setBdMode(mode){
+  bdMode=mode;
+  document.querySelectorAll('.rng-bar:last-child .rng').forEach(b=>b.classList.toggle('active',b.dataset.bd===mode));
+  updSum();renderSta();
 }
 
 function renderSta(){
@@ -385,12 +404,31 @@ function renderSta(){
   const sorted=Object.entries(cm).sort((a,b)=>b[1]-a[1]);
   let ch='';sorted.forEach(([c,v],i)=>{const u=(catCfg[c]&&catCfg[c].unit)||'¥';ch+='<div class="block"><div class="block-label">'+c+'</div><div class="block-value">'+u+v+'</div></div>'});
   document.getElementById('scat').innerHTML=ch?'<div class="blocks">'+ch+'</div>':'<div class="empty">无数据</div>';
-  const dm={};f.forEach(r=>{if(!dm[r.date])dm[r.date]={};dm[r.date][r.cat]=(dm[r.date][r.cat]||0)+r.amount});
+  const dm={};
+  f.forEach(r=>{
+    let dk=r.date;
+    if(bdMode==='18:00'){
+      const t=r.time||'00:00';
+      if(t<'18:00'){
+        // Before 18:00 belongs to previous business day
+        const d=new Date(r.date+'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate()-1);
+        dk=d.toISOString().slice(0,10);
+      }
+    }
+    if(!dm[dk])dm[dk]={};
+    dm[dk][r.cat]=(dm[dk][r.cat]||0)+r.amount;
+  });
   const days=Object.keys(dm).sort((a,b)=>b.localeCompare(a));
   const cats=['合计','工艺品','大衣'];
   let dh='';days.forEach(d=>{
     const cMap=dm[d];let dayTotal=0;Object.entries(cMap).forEach(([c,v])=>dayTotal+=v*((catCfg[c]&&catCfg[c].rate)||1));
-    dh+='<div class="day-group"><div class="day-date">'+d.slice(5)+'</div><div class="blocks">';
+    let dayLabel=d.slice(5);
+    if(bdMode==='18:00'){
+      const next=new Date(d+'T00:00:00Z');next.setUTCDate(next.getUTCDate()+1);
+      dayLabel=d.slice(5)+' 18:00 ~ '+next.toISOString().slice(5,10)+' 18:00';
+    }
+    dh+='<div class="day-group"><div class="day-date">'+dayLabel+'</div><div class="blocks">';
     dh+='<div class="block"><div class="block-label">合计</div><div class="block-value">'+dayTotal+'</div></div>';
     cats.forEach(c=>{if(c!=='合计'&&cMap[c])dh+='<div class="block"><div class="block-label">'+c+'</div><div class="block-value">'+cMap[c]+'</div></div>'});
     dh+='</div></div>';
