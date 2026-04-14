@@ -152,13 +152,13 @@ input[type=text]{width:100%;padding:8px 12px;border:1px solid #e5e5e5;border-rad
 </div>
 
 <div class="page" id="p-sta">
-  <div class="rng-bar">
+  <div class="rng-bar rng-bar-range">
     <div class="rng active" data-r="7" onclick="setRng(7)">7天</div>
     <div class="rng" data-r="30" onclick="setRng(30)">30天</div>
     <div class="rng" data-r="0" onclick="setRng(0)">全部</div>
     <div class="rng" data-r="cus" onclick="setRng('cus')">自定义</div>
   </div>
-  <div class="rng-bar">
+  <div class="rng-bar rng-bar-bd">
     <div class="rng active" data-bd="00:00" onclick="setBdMode('00:00')">0:00-24:00</div>
     <div class="rng" data-bd="18:00" onclick="setBdMode('18:00')">18:00-次日18:00</div>
   </div>
@@ -378,7 +378,7 @@ function closeModal(id){document.getElementById(id).classList.remove('show')}
 // ---- Stats ----
 function setRng(d){
   rng=d;
-  document.querySelectorAll('.rng-bar:first-child .rng').forEach(b=>b.classList.toggle('active',b.dataset.r==d));
+  document.querySelectorAll('.rng-bar-range .rng').forEach(b=>b.classList.toggle('active',b.dataset.r==d));
   document.getElementById('cus-row').style.display=d==='cus'?'flex':'none';
   if(d==='cus'){const n=new Date();document.getElementById('cus-to').value=n.toISOString().slice(0,10);document.getElementById('cus-to-t').value='23:59';const f=new Date(n);f.setDate(f.getDate()-6);document.getElementById('cus-from').value=f.toISOString().slice(0,10);document.getElementById('cus-from-t').value='00:00'}
   renderSta();
@@ -386,7 +386,7 @@ function setRng(d){
 
 function setBdMode(mode){
   bdMode=mode;
-  document.querySelectorAll('.rng-bar:last-child .rng').forEach(b=>b.classList.toggle('active',b.dataset.bd===mode));
+  document.querySelectorAll('.rng-bar-bd .rng').forEach(b=>b.classList.toggle('active',b.dataset.bd===mode));
   updSum();renderSta();
 }
 
